@@ -15,7 +15,7 @@ PolkaLend is a decentralized lending protocol built for the Polkadot ecosystem, 
 - Mints **1000 DOT** to the deployer
 
 ### 2. Deploy `MockPriceOracle`
-- Constructor parameter: `initialPrice = 500000000` (represents $5.00 with 8 decimals)
+- Constructor parameter: `initialPrice = 5` (represents $5.00 with 8 decimals)
 
 ### 3. Deploy `MyStablecoin`
 - Constructor parameter: `_owner = your_wallet_address`
@@ -55,7 +55,7 @@ CollateralToken.transfer(AccountB_address, 100 );
 ### 8. Deposit Collateral (Account A)
 
 ```solidity
-LendingVault.depositCollateral(100 * 1e18);
+LendingVault.depositCollateral(100);
 ```
 
 * Emits `CollateralDeposited` event
