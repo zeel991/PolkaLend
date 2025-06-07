@@ -1,186 +1,144 @@
-# PolkaLend
-# Lending Vault Demo Steps
 
-## Phase 1: Contract Deployment
 
-### Step 1: Deploy CollateralToken
+# 💱 PolkaLend – Lending Protocol Demo Guide
+
+PolkaLend is a decentralized lending protocol built for the Polkadot ecosystem, tested on **Westend** and demoed using the **Reix London VM** for rapid iteration.
+
+📎 **Demo Video**: [Watch on Google Drive](https://drive.google.com/file/d/1zNi7KkYjmztwQ3dvvoT8afjEzkqPJ8tD/view?usp=sharing)
+
+---
+
+## ⚙️ Phase 1: Contract Deployment
+
+### 1. Deploy `CollateralToken`
+- Deploy `CollateralToken.sol` with no constructor parameters
+- Mints **1000 DOT** to the deployer
+
+### 2. Deploy `MockPriceOracle`
+- Constructor parameter: `initialPrice = 500000000` (represents $5.00 with 8 decimals)
+
+### 3. Deploy `MyStablecoin`
+- Constructor parameter: `_owner = your_wallet_address`
+
+### 4. Deploy `LendingVault`
+- Constructor parameters:
+  - `_collateral` = `CollateralToken` contract address
+  - `_stablecoin` = `MyStablecoin` contract address
+  - `_oracle` = `MockPriceOracle` contract address
+
+### 5. Mint Tokens for Liquidator
 ```solidity
-// Deploy CollateralToken.sol first
-// Constructor parameters: none
-// This mints 1000 DOT tokens to the deployer
+MyStablecoin.mint(AccountB_address, 500 );  // 500 MSC to Account B
+````
+
+---
+
+## 👥 Phase 2: Setup Test Accounts
+
+### Account Roles:
+
+* **Account A (Borrower)**: Main demo account
+* **Account B (Liquidator)**: Will perform liquidation
+* **Account C (Oracle Owner)**: Will simulate price change
+
+### Distribute DOT (Collateral Tokens)
+
+```solidity
+CollateralToken.transfer(AccountA_address, 200 );
+CollateralToken.transfer(AccountB_address, 100 );
 ```
 
-### Step 2: Deploy MockPriceOracle
+---
+
+## 🚀 Phase 3: Core Functionality Demo
+
+### 8. Deposit Collateral (Account A)
+
 ```solidity
-// Deploy MockPriceOracle.sol
-// Constructor parameter: initialPrice = 500000000 (represents $5.00 with 8 decimals)
+LendingVault.depositCollateral(100 * 1e18);
 ```
 
-### Step 3: Deploy MyStablecoin
+* Emits `CollateralDeposited` event
+* `vaults[AccountA].collateralAmount == 100`
+
+### 9. Borrow Stablecoins (Account A)
+
+* Collateral value = 100 DOT × \$5 = \$500
+* Max LTV = 75% ⇒ Borrow limit = \$375
+* Borrowing \$300:
+
 ```solidity
-// Deploy MyStablecoin.sol
-// Constructor parameter: initialOwner = your_wallet_address
+LendingVault.borrow(300 );
 ```
 
-### Step 4: Deploy LendingVault
+* Emits `Borrowed` event
+* Vault debt = 300 MSC
+
+### 10. Check Health Ratio
+
 ```solidity
-// Deploy LendingVault.sol
-// Constructor parameters:
-// _collateral: CollateralToken contract address
-// _stablecoin: MyStablecoin contract address
-// _oracle: MockPriceOracle contract address
+LendingVault.getHealthRatio(AccountA_address);
 ```
 
-### Step 5: Prepare Tokens for Demo
-```solidity
-// BEFORE transferring ownership, mint some MSC tokens for liquidation demo
-// Mint tokens to Account B (future liquidator)
-MyStablecoin.mint(AccountB_address, 500 * 1e18)  // 500 MSC tokens
+* Expected: `(100 × 5) / 300 * 100 = 166.67%` (Healthy)
 
+---
+
+## ⚠️ Phase 4: Liquidation Demo
+
+### 11. Simulate Price Drop
+
+```solidity
+MockPriceOracle.updatePrice(2);  // $2.00
 ```
 
-## Phase 2: Setup Test Accounts
+### 12. Check Health After Drop
 
-### Step 6: Prepare Test Accounts
-- **Account A (Borrower)**: Main demonstration account
-- **Account B (Liquidator)**: For liquidation demonstration
-- **Account C (Oracle Owner)**: For price updates
-
-### Step 7: Distribute Collateral Tokens
 ```solidity
-// From deployer account (has 1000 DOT), transfer:
-// - 200 DOT to Account A
-// - 100 DOT to Account B
-// Use CollateralToken.transfer(recipient, amount)
+LendingVault.getHealthRatio(AccountA_address);
+// Now: (100 × 2) / 300 * 100 = 66.67% (Unhealthy)
 ```
 
-## Phase 3: Core Functionality Demo
+### 13. Prepare Liquidator
 
-### Step 8: Deposit Collateral (Account A)
 ```solidity
-
-
-// 1. Deposit 100 DOT as collateral
-LendingVault.depositCollateral(100)
-
-// Expected: CollateralDeposited event emitted
-// Verify: vaults[AccountA].collateralAmount = 100
+MyStablecoin.balanceOf(AccountB_address);  // Should be 500 MSC
+MyStablecoin.approve(LendingVault_address, 300 );
 ```
 
-### Step 9: Borrow Stablecoins (Account A)
+### 14. Execute Liquidation
+
 ```solidity
-// Calculate max borrowable amount:
-// Collateral: 100 DOT
-// Price: $5.00 per DOT
-// Collateral Value: 100 * $5 = $500
-// Max Loan (75% LTV): $500 * 0.75 = $375
-
-// Borrow $300 worth of stablecoins
-LendingVault.borrow(300)
-
-// Expected: 
-// - Borrowed event emitted
-// - Account A receives 300 * 1e18 MSC tokens
-// - vaults[AccountA].debtAmount = 300
+LendingVault.liquidate(AccountA_address);
 ```
 
-### Step 10: Check Health Ratio
-```solidity
-// Check borrower's health
-LendingVault.getHealthRatio(AccountA_address)
+* Burns 300 MSC from Account B
+* Transfers 100 DOT to Account B
+* Deletes Account A’s vault
 
-// Expected result: 
-// (100 DOT * $5) / $300 debt * 100 = 166.67%
-// This is above 80% liquidation threshold (healthy)
+---
+
+## ✅ Phase 5: Post-Liquidation Checks
+
+### Final State:
+
+```solidity
+LendingVault.vaults(AccountA_address); // => 0 collateral, 0 debt
+CollateralToken.balanceOf(AccountB_address); // => 100 DOT (or 200 if added before)
+MyStablecoin.totalSupply(); // Reflects burned MSC
 ```
 
-## Phase 4: Liquidation Demo
+---
 
-### Step 11: Simulate Price Drop (Oracle Owner)
-```solidity
-// Reduce DOT price to trigger liquidation
-// New price: $2.00 per DOT (40% drop)
-MockPriceOracle.updatePrice(200000000)  // $2.00 with 8 decimals
-```
+## 📌 Key Features to Highlight
 
-### Step 12: Check Health After Price Drop
-```solidity
-LendingVault.getHealthRatio(AccountA_address)
+* 🔐 **Loan-to-Value (LTV)**: Max 75%
+* 🚨 **Liquidation Threshold**: Below 80% health triggers liquidation
+* 📉 **Oracle Sensitivity**: Price directly affects vault risk
+* 🧨 **Full Liquidation**: Entire vault is closed, not partial
+* 💰 **Liquidator Incentive**: Acquires discounted collateral
 
-// New calculation:
-// (100 DOT * $2) / $300 debt * 100 = 66.67%
-// This is below 80% liquidation threshold (unhealthy)
-```
 
-### Step 13: Prepare Liquidator (Account B)
-```solidity
-// Account B should already have MSC tokens from Step 5
-// Check Account B's MSC balance:
-MyStablecoin.balanceOf(AccountB_address)  // Should show 500 * 1e18
 
-// Account B approves vault to spend MSC for liquidation
-MyStablecoin.approve(LendingVault_address, 300 * 1e18)
-```
 
-### Step 14: Execute Liquidation (Account B)
-```solidity
-// Account B liquidates Account A's position
-LendingVault.liquidate(AccountA_address)
-
-// Expected results:
-// - Liquidated event emitted
-// - Account B's 300 MSC tokens burned
-// - Account B receives 100 DOT tokens
-// - Account A's vault is deleted
-// - Account A loses all collateral but debt is cleared
-```
-
-## Phase 5: Verification and Analysis
-
-### Step 15: Verify Final State
-```solidity
-// Check that Account A's vault is cleared
-LendingVault.vaults(AccountA_address)
-// Should return: collateralAmount = 0, debtAmount = 0
-
-// Check Account B received collateral
-CollateralToken.balanceOf(AccountB_address)
-// Should show: 200 DOT (100 original + 100 from liquidation)
-
-// Check MSC supply changes
-MyStablecoin.totalSupply()
-// Should reflect minted and burned amounts
-```
-
-## Phase 6: Additional Demo Scenarios
-
-### Step 16: Healthy Liquidation Attempt
-```solidity
-// Try to liquidate a healthy position
-// First, restore DOT price to $5
-MockPriceOracle.updatePrice(500000000)
-
-// Create new healthy position with remaining tokens
-// Attempt liquidation - should fail with "Healthy vault" message
-```
-
-### Step 17: Edge Cases Demo
-```solidity
-// 1. Try borrowing with no collateral
-LendingVault.borrow(100)  // Should fail: "No collateral"
-
-// 2. Try borrowing more than LTV allows
-// Deposit some collateral then try to borrow > 75% of value
-
-// 3. Try depositing zero collateral
-LendingVault.depositCollateral(0)  // Should fail: "Amount must be greater than zero"
-```
-
-## Key Demo Points to Highlight
-
-1. **Loan-to-Value Ratio**: Maximum 75% of collateral value can be borrowed
-2. **Liquidation Threshold**: Positions become liquidatable when health ratio < 80%
-3. **Price Sensitivity**: Collateral price changes directly affect borrowing capacity and liquidation risk
-4. **Complete Liquidation**: Entire position is liquidated (not partial)
-5. **Liquidator Incentive**: Liquidators can acquire collateral at discount during market stress
-
+ 
