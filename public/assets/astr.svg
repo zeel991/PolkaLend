@@ -1,0 +1,7 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="16" cy="16" r="16" fill="#191A34"/>
+  <path d="M22.2112 11.7262L16.0001 8L9.78894 11.7262V19.1782L16.0001 22.9044L22.2112 19.1782V11.7262Z" stroke="#B6B6F2" stroke-width="1.5"/>
+  <path d="M16 8V22.9044" stroke="#B6B6F2" stroke-width="1.5"/>
+  <path d="M22.2113 11.7262L16.0001 15.4524L9.78894 11.7262" stroke="#B6B6F2" stroke-width="1.5"/>
+  <path d="M9.78894 19.1782L16.0001 15.4524L22.2112 19.1782" stroke="#B6B6F2" stroke-width="1.5"/>
+</svg>
