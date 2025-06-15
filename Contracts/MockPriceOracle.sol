@@ -2,17 +2,20 @@
 pragma solidity ^0.8.20;
 
 contract MockPriceOracle {
-    uint256 private price;
+    uint256 public priceInUSD;
+    address public owner;
 
-    constructor(uint256 _price) {
-        price = _price;
+    constructor(uint256 initialPrice) {
+        priceInUSD = initialPrice;
+        owner = msg.sender;
     }
 
-    function setPrice(uint256 _newPrice) external {
-        price = _newPrice;
+    function updatePrice(uint256 newPrice) external {
+        require(msg.sender == owner, "Only owner");
+        priceInUSD = newPrice;
     }
 
     function getPrice() external view returns (uint256) {
-        return price;
+        return priceInUSD;
     }
 }
