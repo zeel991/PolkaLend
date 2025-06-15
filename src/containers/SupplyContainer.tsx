@@ -8,8 +8,8 @@ import { ContainerProps, AssetWithBalance, getAccountAddress } from '../types/le
 
 // Contract addresses (same as ApproveContainer)
 const WESTEND_RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
-const ERC20_TOKEN_CONTRACT = '0xd874C3d577864A8474AA0D01C92a2e638D054b7d';
-const LENDING_VAULT_CONTRACT = '0x7Ff93137156667a7331D4E8C0dEebC0909901bb1';
+const ERC20_TOKEN_CONTRACT = '0x2e5dE4B242c6528f4e8c160807122f45B49fdD71';
+const LENDING_VAULT_CONTRACT = '0x2E8025746f385dA2d882467D2ED05df6b8Bb5A44';
 
 // ERC20 ABI
 const ERC20_ABI = [

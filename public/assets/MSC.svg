@@ -1,0 +1,9 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle -->
+  <circle cx="100" cy="100" r="95" fill="#F0F4F8" stroke="#4A90E2" stroke-width="10"></circle>
+  
+  <!-- Inner design (symbolic balance icon) -->
+  <line x1="60" y1="100" x2="140" y2="100" stroke="#4A90E2" stroke-width="8" stroke-linecap="round"></line>
+  <circle cx="70" cy="80" r="10" fill="#4A90E2"></circle>
+  <circle cx="130" cy="120" r="10" fill="#4A90E2"></circle>
+</svg>

@@ -8,22 +8,329 @@ import { ContainerProps, getAccountAddress } from '../types/lending';
 
 // Contract addresses
 const WESTEND_RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
-const ERC20_TOKEN_CONTRACT = '0xa1b8a61aB0B107221B33705913Fc72bA27720161';
-const LENDING_VAULT_CONTRACT = '0x7Ff93137156667a7331D4E8C0dEebC0909901bb1';
-const MOCK_ORACLE_CONTRACT = '0x02A17C27E96C12801318F2E01D1f7A8898C9A324'; // ⚠️ REPLACE WITH YOUR ACTUAL ORACLE ADDRESS
+const ERC20_TOKEN_CONTRACT = '0x2e5dE4B242c6528f4e8c160807122f45B49fdD71';
+const LENDING_VAULT_CONTRACT = '0x2E8025746f385dA2d882467D2ED05df6b8Bb5A44';
+const MOCK_ORACLE_CONTRACT = '0x213FbC67BC1A3fe7FA5874760Fd4Be1838AF7f37'; // ⚠️ REPLACE WITH YOUR ACTUAL ORACLE ADDRESS
 
 // ABIs
 const ERC20_ABI = [
-  {
-    "inputs": [],
-    "name": "decimals",
-    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
-    "stateMutability": "view",
-    "type": "function"
-  }
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "allowance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "needed",
+				"type": "uint256"
+			}
+		],
+		"name": "ERC20InsufficientAllowance",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "balance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "needed",
+				"type": "uint256"
+			}
+		],
+		"name": "ERC20InsufficientBalance",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "approver",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidApprover",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "receiver",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidReceiver",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidSender",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidSpender",
+		"type": "error"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "Approval",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "Transfer",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			}
+		],
+		"name": "allowance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "approve",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
+			}
+		],
+		"name": "balanceOf",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "decimals",
+		"outputs": [
+			{
+				"internalType": "uint8",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "name",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "symbol",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalSupply",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "transfer",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "transferFrom",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
 ];
 
 const LENDING_VAULT_ABI = [
+  // Vault data structure
   {
     "inputs": [{"internalType": "address", "name": "", "type": "address"}],
     "name": "vaults",
@@ -34,6 +341,41 @@ const LENDING_VAULT_ABI = [
     "stateMutability": "view",
     "type": "function"
   },
+  
+  // Core lending functions
+  {
+    "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+    "name": "supplyCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  
+  {
+    "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+    "name": "withdrawCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  
+  {
+    "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+    "name": "borrow",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  
+  {
+    "inputs": [{"internalType": "uint256", "name": "amount", "type": "uint256"}],
+    "name": "repay",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  
+  // Configuration functions
   {
     "inputs": [],
     "name": "LTV",
@@ -41,23 +383,228 @@ const LENDING_VAULT_ABI = [
     "stateMutability": "view",
     "type": "function"
   },
+  
   {
-    "inputs": [{"internalType": "uint256", "name": "borrowAmountUSD", "type": "uint256"}],
-    "name": "borrow",
+    "inputs": [],
+    "name": "liquidationThreshold",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  
+  // Token addresses
+  {
+    "inputs": [],
+    "name": "collateralToken",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  
+  {
+    "inputs": [],
+    "name": "stablecoin",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  
+  // Oracle
+  {
+    "inputs": [],
+    "name": "oracle",
+    "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  
+  // Health factor calculation
+  {
+    "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
+    "name": "getHealthFactor",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  
+  // Liquidation function
+  {
+    "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
+    "name": "liquidate",
     "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  
+  // Events
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "user", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "CollateralSupplied",
+    "type": "event"
+  },
+  
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "user", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "CollateralWithdrawn",
+    "type": "event"
+  },
+  
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "user", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "Borrowed",
+    "type": "event"
+  },
+  
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "user", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "Repaid",
+    "type": "event"
+  },
+  
+  {
+    "anonymous": false,
+    "inputs": [
+      {"indexed": true, "internalType": "address", "name": "user", "type": "address"},
+      {"indexed": true, "internalType": "address", "name": "liquidator", "type": "address"},
+      {"indexed": false, "internalType": "uint256", "name": "collateralAmount", "type": "uint256"},
+      {"indexed": false, "internalType": "uint256", "name": "debtAmount", "type": "uint256"}
+    ],
+    "name": "Liquidated",
+    "type": "event"
+  },
+  
+  // Standard ERC20-like functions (if the vault also acts as a token)
+  {
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  
+  {
+    "inputs": [
+      {"internalType": "address", "name": "to", "type": "address"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "transfer",
+    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  
+  {
+    "inputs": [
+      {"internalType": "address", "name": "from", "type": "address"},
+      {"internalType": "address", "name": "to", "type": "address"},
+      {"internalType": "uint256", "name": "amount", "type": "uint256"}
+    ],
+    "name": "transferFrom",
+    "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
     "stateMutability": "nonpayable",
     "type": "function"
   }
 ];
 
 const MOCK_ORACLE_ABI = [
-  {
-    "inputs": [],
-    "name": "getPrice",
-    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-    "stateMutability": "view",
-    "type": "function"
-  }
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "initialPrice",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "oldPrice",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "newPrice",
+				"type": "uint256"
+			}
+		],
+		"name": "PriceUpdated",
+		"type": "event"
+	},
+	{
+		"inputs": [],
+		"name": "getPrice",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "priceInUSD",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "newPrice",
+				"type": "uint256"
+			}
+		],
+		"name": "updatePrice",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
 ];
 
 // Westend Asset Hub network configuration
@@ -273,6 +820,67 @@ const getEthereumAddress = (account: any): string => {
 
 // Add this error decoding function at the top of your BorrowContainer component (before handleBorrow)
 
+// Add this function to debug and verify your contract
+const verifyContractFunctions = async () => {
+  try {
+    const ethers = await import('ethers');
+    const provider = new ethers.providers.JsonRpcProvider(WESTEND_RPC_URL);
+    
+    console.log('🔍 VERIFYING CONTRACT FUNCTIONS:');
+    console.log('  - Contract address:', LENDING_VAULT_CONTRACT);
+    
+    // Check if the contract exists
+    const code = await provider.getCode(LENDING_VAULT_CONTRACT);
+    if (code === '0x') {
+      console.error('❌ No contract found at this address!');
+      return;
+    }
+    console.log('✅ Contract found');
+    
+    // Test each critical function
+    const vaultContract = new ethers.Contract(LENDING_VAULT_CONTRACT, LENDING_VAULT_ABI, provider);
+    
+    // Test basic functions
+    try {
+      const ltv = await vaultContract.LTV();
+      console.log('✅ LTV function works:', ltv.toString());
+    } catch (e) {
+      console.error('❌ LTV function failed:', e);
+    }
+    
+    try {
+      const collateralToken = await vaultContract.collateralToken();
+      console.log('✅ collateralToken function works:', collateralToken);
+    } catch (e) {
+      console.error('❌ collateralToken function failed:',  (e as Error).message);
+    }
+    
+    try {
+      const stablecoin = await vaultContract.stablecoin();
+      console.log('✅ stablecoin function works:', stablecoin);
+    } catch (e) {
+      console.error('❌ stablecoin function failed:', (e as Error).message);
+    }
+    
+    // Test with a dummy address
+    try {
+      const dummyAddress = '0x0000000000000000000000000000000000000001';
+      const vaultData = await vaultContract.vaults(dummyAddress);
+      console.log('✅ vaults function works:', {
+        collateralAmount: vaultData.collateralAmount.toString(),
+        debtAmount: vaultData.debtAmount.toString()
+      });
+    } catch (e) {
+      console.error('❌ vaults function failed:',  (e as Error).message);
+    }
+    
+  } catch (error) {
+    console.error('❌ Contract verification failed:', error);
+  }
+};
+
+// Call this function to test your contract
+verifyContractFunctions();
 const decodeContractError = (errorData: string): string => {
   const errorSignature = errorData.slice(0, 10);
   const knownErrors: { [key: string]: string } = {
@@ -285,7 +893,6 @@ const decodeContractError = (errorData: string): string => {
   return knownErrors[errorSignature] || `Unknown contract error: ${errorSignature}`;
 };
 
-// REPLACE your fetchBorrowingStrength function with this enhanced version:
 const fetchBorrowingStrength = async () => {
   try {
     if (!selectedAccount) {

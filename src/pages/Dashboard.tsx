@@ -9,329 +9,296 @@ import { Wallet, PlusCircle, MinusCircle, ArrowRight, RefreshCw } from 'lucide-r
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ethers } from 'ethers';
+import { getAccountAddress } from '../types/lending';
 
-// CollateralToken ABI
-const networth = 0
-const COLLATERAL_TOKEN_ABI = [
+// FIXED: Use the same contract addresses as BorrowContainer
+const WESTEND_RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
+const ERC20_TOKEN_CONTRACT = '0x2e5dE4B242c6528f4e8c160807122f45B49fdD71';
+const LENDING_VAULT_CONTRACT = '0x2E8025746f385dA2d882467D2ED05df6b8Bb5A44';
+const MOCK_ORACLE_CONTRACT = '0x213FbC67BC1A3fe7FA5874760Fd4Be1838AF7f37';
+
+// ABIs
+const ERC20_ABI = [
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
+    "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
     "name": "balanceOf",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "decimals",
-    "outputs": [
-      {
-        "internalType": "uint8",
-        "name": "",
-        "type": "uint8"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "name",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
+    "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "symbol",
-    "outputs": [
-      {
-        "internalType": "string",
-        "name": "",
-        "type": "string"
-      }
-    ],
+    "outputs": [{"internalType": "string", "name": "", "type": "string"}],
     "stateMutability": "view",
     "type": "function"
   }
 ];
 
-const oracleAbi = [
+const LENDING_VAULT_ABI = [
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_price",
-        "type": "uint256"
-      }
+    "inputs": [{"internalType": "address", "name": "", "type": "address"}],
+    "name": "vaults",
+    "outputs": [
+      {"internalType": "uint256", "name": "collateralAmount", "type": "uint256"},
+      {"internalType": "uint256", "name": "debtAmount", "type": "uint256"}
     ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
     "inputs": [],
-    "name": "getPrice",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
+    "name": "LTV",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_newPrice",
-        "type": "uint256"
-      }
-    ],
-    "name": "setPrice",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   }
 ];
 
-const CONTRACT_ADDRESS = '0x722F539B007021Db6f1313E3Ce500c2bEd12fD37';
-const MOCK_ORACLE_ADDRESS = '0x3753e84bb63B833635Ba081D203BFc7f91E029e0';
-const RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
+const ORACLE_ABI = [
+  {
+    "inputs": [],
+    "name": "getPrice",
+    "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+    "stateMutability": "view",
+    "type": "function"
+  }
+];
 
-interface TokenBalance {
-  balance: string;
-  decimals: number;
-  name: string;
-  symbol: string;
+interface RealContractData {
+  // Token balance
+  tokenBalance: number;
+  tokenSymbol: string;
+  
+  // Oracle price
+  oraclePrice: number;
+  
+  // Vault data
+  collateralAmount: number;
+  debtAmount: number;
+  
+  // Calculated values
+  collateralValueUSD: number;
+  maxBorrowableUSD: number;
+  availableToBorrowUSD: number;
+  netWorth: number;
+  
+  // Loading states
+  isLoading: boolean;
+  error: string | null;
 }
 
-interface OraclePrice {
-  price: string;
-  formattedPrice: string;
-  decimals: number;
-}
+// Enhanced Card Animation Component
+const AnimatedCard: React.FC<{ children: React.ReactNode; className?: string; delay?: number }> = ({ 
+  children, 
+  className = "", 
+  delay = 0 
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay, duration: 0.5 }}
+    whileHover={{ 
+      scale: 1.05,
+      y: -8,
+      transition: { duration: 0.3, ease: "easeOut" }
+    }}
+    whileTap={{ scale: 0.98 }}
+    className="group cursor-pointer"
+  >
+    <Card className={`
+      p-6 relative overflow-hidden
+      bg-gradient-to-br from-purple-50/80 to-pink-50/80 
+      dark:from-purple-900/40 dark:to-pink-900/20 
+      border border-purple-200/60 dark:border-purple-700/40
+      backdrop-blur-sm shadow-lg
+      hover:shadow-2xl hover:shadow-purple-500/25
+      hover:border-purple-400/80 dark:hover:border-purple-500/60
+      transform transition-all duration-300 ease-out
+      hover:bg-gradient-to-br hover:from-purple-100/90 hover:to-pink-100/90
+      dark:hover:from-purple-800/60 dark:hover:to-pink-800/40
+      ${className}
+    `}>
+      {/* Animated background effect */}
+      <div className="absolute inset-0 bg-gradient-to-r from-purple-400/0 via-purple-400/5 to-pink-400/0 
+                      opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      
+      {/* Shimmer effect */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-700">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
+                        -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />
+      </div>
+      
+      <div className="relative z-10">
+        {children}
+      </div>
+    </Card>
+  </motion.div>
+);
 
 const Dashboard: React.FC = () => {
-  const { userPositions, healthRatio, markets } = useLending();
+  // const { healthRatio, markets } = useLending();
   const { status, selectedAccount } = useWallet();
   
-  // State for contract data
-  const [tokenBalance, setTokenBalance] = useState<TokenBalance | null>(null);
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
-  const [balanceError, setBalanceError] = useState<string | null>(null);
-  
-  // State for oracle price
-  const [oraclePrice, setOraclePrice] = useState<OraclePrice | null>(null);
-  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
-  const [priceError, setPriceError] = useState<string | null>(null);
-  
-  // Calculate totals from existing positions
-  const totalSupplied = userPositions.reduce((sum, position) => {
-    return sum + (position.supplied * position.asset.price);
-  }, 0);
-  
-  const totalBorrowed = userPositions.reduce((sum, position) => {
-    return sum + (position.borrowed * position.asset.price);
-  }, 0);
-  
-  // Calculate net worth first (needed for borrowing power calculation)
-  const getNetWorthValue = () => {
-    let contractTokenValue = 0;
-    
-    if (tokenBalance && oraclePrice) {
-      // Use oracle price for token valuation
-      const tokenPrice = parseFloat(oraclePrice.formattedPrice);
-      contractTokenValue = parseFloat(tokenBalance.balance) * tokenPrice;
-    }
-    
-    return totalSupplied - totalBorrowed + contractTokenValue;
-  };
+  // State for real contract data
+  const [contractData, setContractData] = useState<RealContractData>({
+    tokenBalance: 0,
+    tokenSymbol: '',
+    oraclePrice: 0,
+    collateralAmount: 0,
+    debtAmount: 0,
+    collateralValueUSD: 0,
+    maxBorrowableUSD: 0,
+    availableToBorrowUSD: 0,
+    netWorth: 0,
+    isLoading: false,
+    error: null
+  });
 
-  const availableToBorrow = (getNetWorthValue() - totalBorrowed) * 0.75;
-
-  // Function to fetch oracle price
-  const fetchOraclePrice = async () => {
-    setIsLoadingPrice(true);
-    setPriceError(null);
-    
+  // Get Ethereum address from account
+  const getEthereumAddress = (account: any): string => {
     try {
-      // Encode the getPrice function call
-      const getPriceSelector = '0x98d5fdca'; // getPrice() function selector
+      const possibleAddresses = [
+        account?.address,
+        account?.meta?.source,
+        account?.meta?.address, 
+        account,
+        getAccountAddress(account)
+      ];
       
-      const response = await fetch(RPC_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'eth_call',
-          params: [
-            {
-              to: MOCK_ORACLE_ADDRESS,
-              data: getPriceSelector
-            },
-            'latest'
-          ],
-          id: 1
-        })
-      });
-      
-      const data = await response.json();
-      if (data.error) {
-        throw new Error(data.error.message);
+      for (const addr of possibleAddresses) {
+        if (addr && typeof addr === 'string' && addr.startsWith('0x') && addr.length === 42) {
+          return addr;
+        }
       }
       
-      // Parse the price result
-      const priceHex = data.result;
-      const priceBigInt = BigInt(priceHex);
-      
-      // Assuming the oracle returns price with 8 decimal places
-      const decimals = 8;
-      const divisor = BigInt(10) ** BigInt(decimals);
-      const formattedPrice = (Number(priceBigInt) / Number(divisor));
-      
-      setOraclePrice({
-        price: priceBigInt.toString(),
-        formattedPrice: formattedPrice.toFixed(8),
-        decimals: decimals
-      });
-      
+      throw new Error(`No Ethereum-compatible address found.`);
     } catch (error) {
-      console.error('Error fetching oracle price:', error);
-      setPriceError('Failed to fetch oracle price');
-    } finally {
-      setIsLoadingPrice(false);
+      throw error;
     }
   };
 
-  // Function to fetch token balance from contract using fetch API
-  const fetchTokenBalance = async (userAddress: string) => {
-    if (!userAddress) return;
-    
-    setIsLoadingBalance(true);
-    setBalanceError(null);
-    
+  // Fetch all real contract data
+  const fetchRealContractData = async () => {
+    if (!selectedAccount) {
+      setContractData(prev => ({
+        ...prev,
+        tokenBalance: 0,
+        tokenSymbol: '',
+        oraclePrice: 0,
+        collateralAmount: 0,
+        debtAmount: 0,
+        collateralValueUSD: 0,
+        maxBorrowableUSD: 0,
+        availableToBorrowUSD: 0,
+        netWorth: 0,
+        isLoading: false,
+        error: null
+      }));
+      return;
+    }
+
+    setContractData(prev => ({ ...prev, isLoading: true, error: null }));
+
     try {
-      // Helper function to make RPC calls
-      const makeRpcCall = async (method: string, params: any[] = []) => {
-        const response = await fetch(RPC_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method: 'eth_call',
-            params: [
-              {
-                to: CONTRACT_ADDRESS,
-                data: method
-              },
-              'latest'
-            ],
-            id: 1
-          })
-        });
-        
-        const data = await response.json();
-        if (data.error) {
-          throw new Error(data.error.message);
-        }
-        return data.result;
-      };
+      const provider = new ethers.providers.JsonRpcProvider(WESTEND_RPC_URL);
       
-      // Encode function calls
-      const balanceOfSelector = '0x70a08231'; // balanceOf(address)
-      const decimalsSelector = '0x313ce567'; // decimals()
-      const nameSelector = '0x06fdde03'; // name()
-      const symbolSelector = '0x95d89b41'; // symbol()
-      
-      // Pad address to 32 bytes for balanceOf call
-      const paddedAddress = userAddress.toLowerCase().replace('0x', '').padStart(64, '0');
-      
-      // Make contract calls
-      const [balanceResult, decimalsResult, nameResult, symbolResult] = await Promise.all([
-        makeRpcCall(balanceOfSelector + paddedAddress),
-        makeRpcCall(decimalsSelector),
-        makeRpcCall(nameSelector),
-        makeRpcCall(symbolSelector)
+      // Create contract instances
+      const tokenContract = new ethers.Contract(ERC20_TOKEN_CONTRACT, ERC20_ABI, provider);
+      const vaultContract = new ethers.Contract(LENDING_VAULT_CONTRACT, LENDING_VAULT_ABI, provider);
+      const oracleContract = new ethers.Contract(MOCK_ORACLE_CONTRACT, ORACLE_ABI, provider);
+
+      const userAddress = getEthereumAddress(selectedAccount);
+
+      // Fetch all data in parallel
+      const [
+        tokenBalance,
+        tokenDecimals,
+        tokenSymbol,
+        vaultData,
+        ltv,
+        oraclePrice
+      ] = await Promise.all([
+        tokenContract.balanceOf(userAddress),
+        tokenContract.decimals(),
+        tokenContract.symbol(),
+        vaultContract.vaults(userAddress),
+        vaultContract.LTV(),
+        oracleContract.getPrice()
       ]);
+
+      // Parse token data
+      const formattedTokenBalance = parseFloat(ethers.utils.formatUnits(tokenBalance, tokenDecimals));
+      const formattedTokenSymbol = tokenSymbol;
+
+      // Parse oracle price (FIXED: 18 decimals)
+      const formattedOraclePrice = parseFloat(ethers.utils.formatUnits(oraclePrice, 18));
+
+      // Parse vault data
+      const collateralAmount = parseFloat(ethers.utils.formatUnits(vaultData.collateralAmount, tokenDecimals));
+      const debtAmount = parseFloat(vaultData.debtAmount.toString());
+
+      // Calculate derived values
+      const collateralValueUSD = collateralAmount * formattedOraclePrice;
+      const ltvPercent = parseFloat(ltv.toString());
+      const maxBorrowableUSD = collateralValueUSD * (ltvPercent / 100);
+      const availableToBorrowUSD = Math.max(0, maxBorrowableUSD - debtAmount);
       
-      // Parse results
-      const balance = BigInt(balanceResult);
-      const decimals = parseInt(decimalsResult, 16);
-      
-      // Decode name and symbol (they are encoded as bytes32)
-      const decodeName = (hex: string) => {
-        const bytes = hex.replace('0x', '');
-        let result = '';
-        for (let i = 0; i < bytes.length; i += 2) {
-          const byte = parseInt(bytes.substr(i, 2), 16);
-          if (byte !== 0) {
-            result += String.fromCharCode(byte);
-          }
-        }
-        return result;
-      };
-      
-      const name = decodeName(nameResult);
-      const symbol = decodeName(symbolResult);
-      
-      // Format balance
-      const divisor = BigInt(10) ** BigInt(decimals);
-      const formattedBalance = (Number(balance) / Number(divisor)).toString();
-      
-      setTokenBalance({
-        balance: formattedBalance,
-        decimals: decimals,
-        name: name || 'Unknown Token',
-        symbol: symbol || 'UNK'
+      // Calculate net worth (wallet tokens + collateral - debt)
+      const walletValueUSD = formattedTokenBalance * formattedOraclePrice;
+      const netWorth = walletValueUSD + collateralValueUSD - debtAmount;
+
+      setContractData({
+        tokenBalance: formattedTokenBalance,
+        tokenSymbol: formattedTokenSymbol,
+        oraclePrice: formattedOraclePrice,
+        collateralAmount: collateralAmount,
+        debtAmount: debtAmount,
+        collateralValueUSD: collateralValueUSD,
+        maxBorrowableUSD: maxBorrowableUSD,
+        availableToBorrowUSD: availableToBorrowUSD,
+        netWorth: netWorth,
+        isLoading: false,
+        error: null
       });
-      
+
     } catch (error) {
-      console.error('Error fetching token balance:', error);
-      setBalanceError('Failed to fetch token balance');
-    } finally {
-      setIsLoadingBalance(false);
+      console.error('Error fetching contract data:', error);
+      setContractData(prev => ({
+        ...prev,
+        isLoading: false,
+        error: `Failed to fetch contract data: ${error}`
+      }));
     }
   };
 
-  // Effect to fetch balance and price when wallet is connected
+  // Fetch data when account changes
   useEffect(() => {
-    if (selectedAccount?.address) {
-      fetchTokenBalance(selectedAccount.address);
-    }
-    // Fetch oracle price regardless of wallet connection
-    fetchOraclePrice();
-  }, [selectedAccount?.address]);
+    fetchRealContractData();
+  }, [selectedAccount]);
 
-  // Calculate net worth including contract token balance
-  const getNetWorth = () => {
-    return getNetWorthValue();
+  // Calculate health ratio from real data
+  const getRealHealthRatio = () => {
+    if (contractData.debtAmount === 0) {
+      return { value: 999, status: 'healthy' as const };
+    }
+    
+    const healthValue = contractData.collateralValueUSD / contractData.debtAmount;
+    
+    if (healthValue >= 1.5) return { value: healthValue, status: 'healthy' as const };
+    if (healthValue >= 1.1) return { value: healthValue, status: 'warning' as const };
+    return { value: healthValue, status: 'danger' as const };
   };
 
-  // Check if the user has positions
-  const hasPositions = userPositions.length > 0 || (tokenBalance && parseFloat(tokenBalance.balance) > 0);
+  const realHealthRatio = getRealHealthRatio();
+  const hasPositions = contractData.collateralAmount > 0 || contractData.debtAmount > 0 || contractData.tokenBalance > 0;
 
   if (!selectedAccount) {
     // User is not connected, show welcome screen
@@ -342,40 +309,6 @@ const Dashboard: React.FC = () => {
           <p className="text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
             Connect your wallet to start depositing collateral and borrowing assets.
           </p>
-        </div>
-        
-        {/* Oracle Price Display (visible even when not connected) */}
-        <div className="flex justify-center mb-8">
-          <Card className="p-4 max-w-sm">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-neutral-600 dark:text-neutral-400">Oracle Price</h3>
-              <button
-                onClick={fetchOraclePrice}
-                disabled={isLoadingPrice}
-                className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-                title="Refresh price"
-              >
-                <RefreshCw size={14} className={`${isLoadingPrice ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-            {isLoadingPrice ? (
-              <div className="flex items-center space-x-2">
-                <RefreshCw size={16} className="animate-spin" />
-                <span className="text-sm">Loading price...</span>
-              </div>
-            ) : priceError ? (
-              <p className="text-sm text-red-500">{priceError}</p>
-            ) : oraclePrice ? (
-              <div>
-                <p className="text-lg font-bold">${oraclePrice.formattedPrice}</p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Raw: {oraclePrice.price} (8 decimals)
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">No price data</p>
-            )}
-          </Card>
         </div>
         
         <div className="flex justify-center mt-10">
@@ -402,301 +335,327 @@ const Dashboard: React.FC = () => {
     <div className="container mx-auto px-4 py-10 max-w-6xl text-white">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-bold ">Your Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-heading font-bold">Your Dashboard</h1>
           <p className="text-neutral-600 dark:text-neutral-400">
-            Manage your positions and monitor your health ratio
+            Real-time data from Westend Asset Hub contracts
           </p>
         </div>
         
         {hasPositions && (
-          <div className="mt-4 md:mt-0">
-            <HealthRatioGauge healthRatio={healthRatio} />
-          </div>
+          <motion.div 
+            className="mt-4 md:mt-0"
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+          >
+            <HealthRatioGauge healthRatio={realHealthRatio} />
+          </motion.div>
         )}
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-10 text-white">
-        {/* Enhanced Net Worth Card */}
-        <Card className="p-6">
+        {/* Real Net Worth Card */}
+        <AnimatedCard delay={0.1}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Net Worth</h2>
-            <button
-              onClick={() => selectedAccount?.address && fetchTokenBalance(selectedAccount.address)}
-              disabled={isLoadingBalance}
-              className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-              title="Refresh balance"
+            <h2 className="text-lg font-semibold text-purple-800 dark:text-purple-200 group-hover:text-purple-900 dark:group-hover:text-purple-100 transition-colors">
+              💰 Net Worth
+            </h2>
+            <motion.button
+              onClick={fetchRealContractData}
+              disabled={contractData.isLoading}
+              className="p-2 rounded-full hover:bg-purple-100 dark:hover:bg-purple-800/50 transition-colors group-hover:scale-110"
+              title="Refresh data"
+              whileHover={{ rotate: 180 }}
+              whileTap={{ scale: 0.9 }}
             >
-              <RefreshCw size={16} className={`${isLoadingBalance ? 'animate-spin' : ''}`} />
-            </button>
+              <RefreshCw size={16} className={`text-purple-600 dark:text-purple-400 ${contractData.isLoading ? 'animate-spin' : ''}`} />
+            </motion.button>
           </div>
           
-          <div className="text-3xl font-bold mb-2">{formatCurrency(getNetWorth())}</div>
-          
-          <div className="grid grid-cols-2 gap-4 mt-6">
-            <div>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">Supplied</p>
-              <p className="text-lg font-semibold">{formatCurrency(totalSupplied)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">Borrowed</p>
-              <p className="text-lg font-semibold">{formatCurrency(totalBorrowed)}</p>
-            </div>
-          </div>
-          
-          {/* Contract Token Balance Section */}
-          <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-2">Contract Token</p>
-            {isLoadingBalance ? (
-              <div className="flex items-center space-x-2">
-                <RefreshCw size={16} className="animate-spin" />
-                <span className="text-sm">Loading...</span>
-              </div>
-            ) : balanceError ? (
-              <p className="text-sm text-red-500">{balanceError}</p>
-            ) : tokenBalance ? (
-              <div>
-                <p className="text-lg font-semibold">
-                  {parseFloat(tokenBalance.balance).toFixed(4)} {tokenBalance.symbol}
-                </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {tokenBalance.name}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">No balance</p>
-            )}
-          </div>
-        </Card>
-        
-        {/* Oracle Price Card */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">Oracle Price</h2>
-            <button
-              onClick={fetchOraclePrice}
-              disabled={isLoadingPrice}
-              className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
-              title="Refresh price"
-            >
-              <RefreshCw size={16} className={`${isLoadingPrice ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-          
-          {isLoadingPrice ? (
+          {contractData.isLoading ? (
             <div className="flex items-center space-x-2">
-              <RefreshCw size={16} className="animate-spin" />
-              <span className="text-sm">Loading price...</span>
+              <RefreshCw size={16} className="animate-spin text-purple-500" />
+              <span className="text-purple-600 dark:text-purple-400">Loading...</span>
             </div>
-          ) : priceError ? (
-            <div>
-              <p className="text-sm text-red-500 mb-2">{priceError}</p>
-              <button
-                onClick={fetchOraclePrice}
-                className="text-xs bg-primary-500 hover:bg-primary-600 text-white px-3 py-1 rounded"
+          ) : contractData.error ? (
+            <div className="text-red-500 text-sm">{contractData.error}</div>
+          ) : (
+            <>
+              <motion.div 
+                className="text-3xl font-bold mb-2 text-purple-900 dark:text-purple-100 group-hover:scale-110 transition-transform"
+                whileHover={{ scale: 1.1 }}
               >
-                Retry
-              </button>
+                {formatCurrency(contractData.netWorth)}
+              </motion.div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-6">
+                <div>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">Supplied</p>
+                  <p className="text-lg font-semibold text-green-600 dark:text-green-400">{formatCurrency(contractData.collateralValueUSD)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">Borrowed</p>
+                  <p className="text-lg font-semibold text-red-600 dark:text-red-400">{formatCurrency(contractData.debtAmount)}</p>
+                </div>
+              </div>
+              
+              {/* Wallet Token Balance */}
+              <div className="mt-4 pt-4 border-t border-purple-200 dark:border-purple-700">
+                <p className="text-sm text-purple-600 dark:text-purple-400 mb-2">💼 Wallet Balance</p>
+                <p className="text-lg font-semibold text-purple-800 dark:text-purple-200">
+                  {contractData.tokenBalance.toFixed(4)} {contractData.tokenSymbol}
+                </p>
+                <p className="text-sm text-purple-600 dark:text-purple-400">
+                  ≈ {formatCurrency(contractData.tokenBalance * contractData.oraclePrice)}
+                </p>
+              </div>
+            </>
+          )}
+        </AnimatedCard>
+        
+        {/* Real Oracle Price Card */}
+        <AnimatedCard delay={0.2}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-purple-800 dark:text-purple-200 group-hover:text-purple-900 dark:group-hover:text-purple-100 transition-colors">
+              📊 Oracle Price
+            </h2>
+            <motion.button
+              onClick={fetchRealContractData}
+              disabled={contractData.isLoading}
+              className="p-2 rounded-full hover:bg-purple-100 dark:hover:bg-purple-800/50 transition-colors group-hover:scale-110"
+              title="Refresh price"
+              whileHover={{ rotate: 180 }}
+              whileTap={{ scale: 0.9 }}
+            >
+              <RefreshCw size={16} className={`text-purple-600 dark:text-purple-400 ${contractData.isLoading ? 'animate-spin' : ''}`} />
+            </motion.button>
+          </div>
+          
+          {contractData.isLoading ? (
+            <div className="flex items-center space-x-2">
+              <RefreshCw size={16} className="animate-spin text-purple-500" />
+              <span className="text-purple-600 dark:text-purple-400">Loading...</span>
             </div>
-          ) : oraclePrice ? (
-            <div>
-              <div className="text-3xl font-bold mb-2">${oraclePrice.formattedPrice}</div>
+          ) : contractData.error ? (
+            <div className="text-red-500 text-sm">{contractData.error}</div>
+          ) : (
+            <>
+              <motion.div 
+                className="text-3xl font-bold mb-2 text-purple-900 dark:text-purple-100 group-hover:scale-110 transition-transform"
+                whileHover={{ scale: 1.1 }}
+              >
+                ${contractData.oraclePrice.toFixed(2)}
+              </motion.div>
               <div className="space-y-2">
                 <div>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Raw Value</p>
-                  <p className="text-sm font-mono">{oraclePrice.price}</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">Token</p>
+                  <p className="text-sm font-medium text-purple-800 dark:text-purple-200">{contractData.tokenSymbol}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400">Decimals</p>
-                  <p className="text-sm">{oraclePrice.decimals}</p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">Network</p>
+                  <p className="text-sm font-medium text-purple-800 dark:text-purple-200">🌐 Westend Asset Hub</p>
                 </div>
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">No price data</p>
+            </>
           )}
-        </Card>
+        </AnimatedCard>
         
-        {/* Borrowing Power Card */}
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Borrowing Power</h2>
-          <div className="text-3xl font-bold mb-2">{formatCurrency(availableToBorrow)}</div>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            Available to borrow based on your collateral
-          </p>
+        {/* Real Borrowing Power Card */}
+        <AnimatedCard delay={0.3}>
+          <h2 className="text-lg font-semibold mb-4 text-purple-800 dark:text-purple-200 group-hover:text-purple-900 dark:group-hover:text-purple-100 transition-colors">
+            ⚡ Borrowing Power
+          </h2>
           
-          <div className="mt-6">
-            <Link 
-              to="/borrow"
-              className="w-full flex items-center justify-center space-x-1 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg px-4 py-2 transition-all duration-200"
-            >
-              <span>Borrow</span>
-              <ArrowRight size={16} />
-            </Link>
-          </div>
-        </Card>
+          {contractData.isLoading ? (
+            <div className="flex items-center space-x-2">
+              <RefreshCw size={16} className="animate-spin text-purple-500" />
+              <span className="text-purple-600 dark:text-purple-400">Loading...</span>
+            </div>
+          ) : contractData.error ? (
+            <div className="text-red-500 text-sm">{contractData.error}</div>
+          ) : (
+            <>
+              <motion.div 
+                className="text-3xl font-bold mb-2 text-purple-900 dark:text-purple-100 group-hover:scale-110 transition-transform"
+                whileHover={{ scale: 1.1 }}
+              >
+                {formatCurrency(contractData.availableToBorrowUSD)}
+              </motion.div>
+              <p className="text-sm text-purple-600 dark:text-purple-400 mb-4">
+                Available to borrow (75% LTV)
+              </p>
+              
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-purple-600 dark:text-purple-400">Max Borrowable:</span>
+                  <span className="text-purple-800 dark:text-purple-200">{formatCurrency(contractData.maxBorrowableUSD)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-purple-600 dark:text-purple-400">Currently Borrowed:</span>
+                  <span className="text-purple-800 dark:text-purple-200">{formatCurrency(contractData.debtAmount)}</span>
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link 
+                    to="/borrow"
+                    className="w-full flex items-center justify-center space-x-1 
+                             bg-gradient-to-r from-purple-500 to-pink-500 
+                             hover:from-purple-600 hover:to-pink-600 
+                             text-white font-medium rounded-lg px-4 py-2 
+                             transition-all duration-200 shadow-lg hover:shadow-xl
+                             transform group-hover:scale-105"
+                  >
+                    <span>Borrow Now</span>
+                    <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </motion.div>
+              </div>
+            </>
+          )}
+        </AnimatedCard>
         
-        {/* Health Status Card */}
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Health Status</h2>
+        {/* Real Health Status Card */}
+        <AnimatedCard delay={0.4}>
+          <h2 className="text-lg font-semibold mb-4 text-purple-800 dark:text-purple-200 group-hover:text-purple-900 dark:group-hover:text-purple-100 transition-colors">
+            ❤️ Health Status
+          </h2>
           
           {!hasPositions ? (
             <div className="flex flex-col items-center justify-center h-32">
-              <p className="text-neutral-500 dark:text-neutral-400 text-center">
+              <p className="text-purple-600 dark:text-purple-400 text-center">
                 You have no active positions yet.
               </p>
-              <Link 
-                to="/markets"
-                className="mt-4 inline-flex items-center text-primary-500 hover:text-primary-600"
-              >
-                <span>Explore markets</span>
-                <ArrowRight size={16} className="ml-1" />
-              </Link>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <Link 
+                  to="/markets"
+                  className="mt-4 inline-flex items-center text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-200 font-medium"
+                >
+                  <span>🚀 Explore markets</span>
+                  <ArrowRight size={16} className="ml-1 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </motion.div>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800">
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-1">
-                  Liquidation at
+              <motion.div 
+                className="p-3 rounded-lg bg-purple-100/80 dark:bg-purple-800/40 border border-purple-200 dark:border-purple-700"
+                whileHover={{ scale: 1.02 }}
+              >
+                <p className="text-sm text-purple-700 dark:text-purple-300 mb-1">
+                  ⚠️ Liquidation at
                 </p>
-                <p className="text-lg font-medium">&lt; 1.0 Health Ratio</p>
-              </div>
+                <p className="text-lg font-medium text-purple-900 dark:text-purple-100">&lt; 1.0 Health Ratio</p>
+              </motion.div>
               
-              <div className="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-800">
-                <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-1">
-                  Current health ratio
+              <motion.div 
+                className="p-3 rounded-lg bg-purple-100/80 dark:bg-purple-800/40 border border-purple-200 dark:border-purple-700"
+                whileHover={{ scale: 1.02 }}
+              >
+                <p className="text-sm text-purple-700 dark:text-purple-300 mb-1">
+                  📈 Current health ratio
                 </p>
                 <p className={`text-lg font-medium ${
-                  healthRatio.status === 'healthy' ? 'text-success-600' : 
-                  healthRatio.status === 'warning' ? 'text-warning-600' : 
-                  'text-error-600'
+                  realHealthRatio.status === 'healthy' ? 'text-green-600 dark:text-green-400' : 
+                  realHealthRatio.status === 'warning' ? 'text-yellow-600 dark:text-yellow-400' : 
+                  'text-red-600 dark:text-red-400'
                 }`}>
-                  {healthRatio.value.toFixed(2)}
+                  {realHealthRatio.value === 999 ? '∞' : realHealthRatio.value.toFixed(2)}
                 </p>
-              </div>
+              </motion.div>
+              
+              {contractData.collateralAmount > 0 && (
+                <motion.div 
+                  className="p-3 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700"
+                  whileHover={{ scale: 1.02 }}
+                >
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-1">
+                    🔒 Collateral Deposited
+                  </p>
+                  <p className="text-lg font-medium text-blue-900 dark:text-blue-100">
+                    {contractData.collateralAmount.toFixed(4)} {contractData.tokenSymbol}
+                  </p>
+                </motion.div>
+              )}
             </div>
           )}
-        </Card>
+        </AnimatedCard>
       </div>
       
-      {/* Your Supplies */}
-      <motion.div 
-        className="mb-10"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-heading font-semibold">Your Supplies</h2>
-          <Link 
-            to="/markets" 
-            className="text-primary-500 hover:text-primary-600 text-sm font-medium flex items-center"
+      {/* Real Position Summary */}
+      {hasPositions && (
+        <motion.div 
+          className="mb-10"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-heading font-semibold">📊 Your Position Summary</h2>
+            <motion.button
+              onClick={fetchRealContractData}
+              disabled={contractData.isLoading}
+              className="text-purple-500 hover:text-purple-600 text-sm font-medium flex items-center
+                         hover:bg-purple-100/20 dark:hover:bg-purple-900/20 px-3 py-1 rounded-lg transition-all"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <RefreshCw size={16} className={`mr-1 ${contractData.isLoading ? 'animate-spin' : ''}`} />
+              Refresh Data
+            </motion.button>
+          </div>
+          
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.6 }}
+            whileHover={{ scale: 1.02 }}
           >
-            Supply More
-            <ArrowRight size={16} className="ml-1" />
-          </Link>
-        </div>
-        
-        <Card>
-          {userPositions.filter(p => p.supplied > 0).length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-neutral-500 dark:text-neutral-400 mb-4">
-                You haven't supplied any assets yet.
-              </p>
-              <Link 
-                to="/markets"
-                className="inline-flex items-center space-x-1 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg px-4 py-2 transition-all duration-200"
-              >
-                <PlusCircle size={16} />
-                <span>Supply Assets</span>
-              </Link>
-            </div>
-          ) : (
-            <div>
-              {userPositions.filter(p => p.supplied > 0).map((position) => {
-                const market = markets.find(m => m.asset.id === position.asset.id);
-                return (
-                  <AssetRow
-                    key={position.asset.id}
-                    asset={position.asset}
-                    balance={position.supplied}
-                    value={position.supplied * position.asset.price}
-                    apy={market?.supplyAPY}
-                    actions={
-                      <div className="flex space-x-2">
-                        <button className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700" title="Withdraw">
-                          <MinusCircle size={20} />
-                        </button>
-                        <button className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700" title="Supply">
-                          <PlusCircle size={20} />
-                        </button>
-                      </div>
-                    }
-                  />
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </motion.div>
-      
-      {/* Your Borrows */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-heading font-semibold">Your Borrows</h2>
-          <Link 
-            to="/borrow" 
-            className="text-primary-500 hover:text-primary-600 text-sm font-medium flex items-center"
-          >
-            Borrow More
-            <ArrowRight size={16} className="ml-1" />
-          </Link>
-        </div>
-        
-        <Card>
-          {userPositions.filter(p => p.borrowed > 0).length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-neutral-500 dark:text-neutral-400 mb-4">
-                You haven't borrowed any assets yet.
-              </p>
-              <Link 
-                to="/borrow"
-                className="inline-flex items-center space-x-1 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg px-4 py-2 transition-all duration-200"
-              >
-                <span>Borrow Assets</span>
-              </Link>
-            </div>
-          ) : (
-            <div>
-              {userPositions.filter(p => p.borrowed > 0).map((position) => {
-                const market = markets.find(m => m.asset.id === position.asset.id);
-                return (
-                  <AssetRow
-                    key={position.asset.id}
-                    asset={position.asset}
-                    balance={position.borrowed}
-                    value={position.borrowed * position.asset.price}
-                    apy={market?.borrowAPY}
-                    actions={
-                      <div className="flex space-x-2">
-                        <button className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700" title="Repay">
-                          <MinusCircle size={20} />
-                        </button>
-                        <button className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-700" title="Borrow More">
-                          <PlusCircle size={20} />
-                        </button>
-                      </div>
-                    }
-                  />
-                );
-              })}
-            </div>
-          )}
-        </Card>
-      </motion.div>
+            <Card className="p-6 bg-gradient-to-br from-purple-50/60 to-pink-50/60 
+                           dark:from-purple-900/30 dark:to-pink-900/20 
+                           border border-purple-200/60 dark:border-purple-700/40
+                           hover:shadow-2xl hover:shadow-purple-500/20 transition-all duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <motion.div 
+                  className="text-center"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  <h3 className="text-sm text-purple-600 dark:text-purple-400 mb-2">💎 Collateral Supplied</h3>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {contractData.collateralAmount.toFixed(4)} {contractData.tokenSymbol}
+                  </p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">
+                    ≈ {formatCurrency(contractData.collateralValueUSD)}
+                  </p>
+                </motion.div>
+                
+                <motion.div 
+                  className="text-center"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  <h3 className="text-sm text-purple-600 dark:text-purple-400 mb-2">💳 Total Borrowed</h3>
+                  <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                    {formatCurrency(contractData.debtAmount)}
+                  </p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">USD</p>
+                </motion.div>
+                
+                <motion.div 
+                  className="text-center"
+                  whileHover={{ scale: 1.05 }}
+                >
+                  <h3 className="text-sm text-purple-600 dark:text-purple-400 mb-2">⚡ Available to Borrow</h3>
+                  <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                    {formatCurrency(contractData.availableToBorrowUSD)}
+                  </p>
+                  <p className="text-sm text-purple-600 dark:text-purple-400">USD</p>
+                </motion.div>
+              </div>
+            </Card>
+          </motion.div>
+        </motion.div>
+      )}
     </div>
   );
 };

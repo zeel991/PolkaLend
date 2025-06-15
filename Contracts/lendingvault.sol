@@ -39,6 +39,14 @@ contract LendingVault {
     uint8 public collateralDecimals;
     uint8 public stablecoinDecimals;
 
+    // MINIMAL ADDITION: Track borrowers for liquidation.tsx
+    address[] public borrowers;
+    mapping(address => bool) public isBorrower;
+
+    // MINIMAL ADDITION: Events required by liquidation.tsx
+    event Borrowed(address indexed user, uint256 amountUSD, uint256 stablecoinAmount);
+    event Liquidated(address indexed user, address indexed liquidator, uint256 repayAmountUSD, uint256 collateralReceived);
+
     constructor(address _collateral, address _stablecoin, address _oracle) {
         collateralToken = IERC20(_collateral);
         stablecoin = IStablecoin(_stablecoin);
@@ -69,11 +77,20 @@ contract LendingVault {
 
         require(v.debtAmount + borrowAmountUSD <= maxLoan, "Exceeds LTV");
 
+        // MINIMAL ADDITION: Track borrowers
+        if (!isBorrower[msg.sender] && v.debtAmount == 0) {
+            borrowers.push(msg.sender);
+            isBorrower[msg.sender] = true;
+        }
+
         v.debtAmount += borrowAmountUSD;
         
         // Mint stablecoins: borrowAmountUSD is in USD (no decimals), convert to stablecoin decimals
         uint256 stablecoinAmount = borrowAmountUSD * (10 ** stablecoinDecimals);
         stablecoin.mint(msg.sender, stablecoinAmount);
+
+        // MINIMAL ADDITION: Emit event for liquidation.tsx
+        emit Borrowed(msg.sender, borrowAmountUSD, stablecoinAmount);
     }
 
     function repay(uint256 repayAmountUSD) external {
@@ -88,36 +105,23 @@ contract LendingVault {
         v.debtAmount -= repayAmountUSD;
     }
 
-    function liquidate(address user, uint256 repayAmountUSD) external {
+    function liquidate(address user) external {
         require(msg.sender != user, "Cannot liquidate self");
 
         Vault storage v = vaults[user];
         require(v.debtAmount > 0, "No debt");
 
-        uint256 health = _calculateHealthRatio(v);
+        uint256 health = _calculateHealthRatio(v) / (10** collateralDecimals);
         require(health < LIQUIDATION_THRESHOLD, "Vault is healthy");
-        require(repayAmountUSD > 0 && repayAmountUSD <= v.debtAmount, "Invalid repay amount");
 
         // Convert USD amount to stablecoin amount
-        uint256 stablecoinAmount = repayAmountUSD * (10 ** stablecoinDecimals);
+        uint256 stablecoinAmount = ((v.collateralAmount * oracle.getPrice())* 105)/100;
         require(stablecoin.transferFrom(msg.sender, address(this), stablecoinAmount), "Transfer failed");
-        stablecoin.burn(address(this), stablecoinAmount);
 
-        uint256 price = oracle.getPrice(); // 8 decimals
-        uint256 discountedCollateralUSD = (repayAmountUSD * 105) / 100; // 5% bonus
-        
-        // Convert USD back to collateral tokens
-        // discountedCollateralUSD is in USD (no decimals)
-        // price is in 8 decimals per 1 unit of collateral
-        // Result should be in collateral token decimals
-        uint256 collateralToGive = (discountedCollateralUSD * (10 ** collateralDecimals)) / price;
+        require(collateralToken.transfer(msg.sender, v.collateralAmount), "Collateral transfer failed");
 
-        require(collateralToGive <= v.collateralAmount, "Not enough collateral");
-
-        v.debtAmount -= repayAmountUSD;
-        v.collateralAmount -= collateralToGive;
-
-        require(collateralToken.transfer(msg.sender, collateralToGive), "Collateral transfer failed");
+        // MINIMAL ADDITION: Emit event for liquidation.tsx
+        emit Liquidated(user, msg.sender, stablecoinAmount, v.collateralAmount);
     }
 
     function getHealthRatio(address user) public view returns (uint256) {
@@ -160,5 +164,37 @@ contract LendingVault {
 
         uint256 price = oracle.getPrice();
         return (v.collateralAmount * price) / (10 ** (collateralDecimals));
+    }
+
+    // MINIMAL ADDITIONS: Functions required by liquidation.tsx
+    function getAllBorrowers() external view returns (address[] memory) {
+        return borrowers;
+    }
+
+    function getBorrowerCount() external view returns (uint256) {
+        return borrowers.length;
+    }
+
+    function getBorrowerDetails(address user) external view returns (
+        uint256 collateralAmount,
+        uint256 debtAmount,
+        uint256 healthRatio,
+        uint256 collateralValueUSD
+    ) {
+        Vault memory v = vaults[user];
+        
+        // Inline the collateral value calculation to avoid forward reference
+        uint256 collateralValue = 0;
+        if (v.collateralAmount > 0) {
+            uint256 price = oracle.getPrice();
+            collateralValue = (v.collateralAmount * price) / (10 ** (collateralDecimals));
+        }
+        
+        return (
+            v.collateralAmount,
+            v.debtAmount,
+            getHealthRatio(user),
+            collateralValue
+        );
     }
 }
