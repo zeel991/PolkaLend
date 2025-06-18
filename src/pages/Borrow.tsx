@@ -20,8 +20,6 @@ import {
   AssetWithBalance,
   ApprovalState,
   TokenApproval,
-  DOT_TOKEN_CONTRACT,
-  LENDING_VAULT_CONTRACT,
   getAccountAddress,
   toNumber
 } from '../types/lending';
@@ -72,7 +70,6 @@ const AnimatedCard: React.FC<{ children: React.ReactNode; className?: string; de
   </motion.div>
 );
 
-// Enhanced Tab Button Component
 const TabButton: React.FC<{ 
   active: boolean; 
   onClick: () => void; 
@@ -94,7 +91,6 @@ const TabButton: React.FC<{
       <span className={active ? 'drop-shadow-sm' : ''}>{children}</span>
     </div>
     
-    {/* Enhanced active indicator */}
     <motion.div
       className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 to-orange-400 ${
         active ? 'opacity-100' : 'opacity-0'
@@ -107,7 +103,6 @@ const TabButton: React.FC<{
       transition={{ duration: 0.3 }}
     />
     
-    {/* Shimmer effect for active state */}
     {active && (
       <div className="absolute inset-0 opacity-30">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
@@ -115,7 +110,6 @@ const TabButton: React.FC<{
       </div>
     )}
     
-    {/* Enhanced hover background */}
     <div className={`absolute inset-0 rounded-t-lg bg-gradient-to-r from-purple-200/60 to-pink-200/60 
                     dark:from-purple-700/40 dark:to-pink-700/40 opacity-0 group-hover:opacity-100 
                     transition-opacity duration-300 ${active ? 'hidden' : ''}`} />
@@ -127,19 +121,16 @@ const Borrow: React.FC = () => {
   const { 
     netWorth, 
     oraclePrice,
-    tokenBalance,
     isLoading
   } = useLendingData();
 
   const { 
     markets, 
     userPositions, 
-    healthRatio, 
-    borrowAsset, 
-    repayLoan
+    healthRatio,
   } = useLending();
   
-  const { status, selectedAccount } = useWallet();
+  const { selectedAccount } = useWallet();
 
   // UI state
   const [selectedAsset, setSelectedAsset] = useState<AssetWithBalance | null>(null);
@@ -363,7 +354,6 @@ const Borrow: React.FC = () => {
     );
   }
 
-  // Enhanced Wallet not connected state
   if (!selectedAccount) {
     return (
       <div className="container mx-auto px-4 py-10 max-w-6xl text-center text-white">
@@ -427,7 +417,6 @@ const Borrow: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-r from-purple-100/20 to-pink-100/20 
                                dark:from-purple-900/20 dark:to-pink-900/20 rounded-t-lg -z-10" />
                 
-                {/* Direction indicator */}
                 <motion.div
                   className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-purple-400 to-pink-400 opacity-30"
                   key={`${activeTab}-indicator`}
@@ -485,7 +474,6 @@ const Borrow: React.FC = () => {
                 }}
                 className="relative"
               >
-                {/* Directional background effect */}
                 <motion.div
                   className="absolute inset-0 bg-gradient-to-r from-purple-100/20 to-pink-100/20 
                            dark:from-purple-900/10 dark:to-pink-900/10 rounded-lg -z-10"

@@ -8,9 +8,9 @@ import { ContainerProps, getAccountAddress } from '../types/lending';
 
 // Contract addresses
 const WESTEND_RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
-const ERC20_TOKEN_CONTRACT = '0x1FDe1cAeCe0C9d102C5736d2AdE595Dc6cE45f1c';
-const LENDING_VAULT_CONTRACT = '0x61eB150FB07c6DD742893708e6B7D7a4161BcA0C';
-const MOCK_ORACLE_CONTRACT = '0x05deF0eDF0ED1773F724A9Fe121Af64267C69204'; // ⚠️ REPLACE WITH YOUR ACTUAL ORACLE ADDRESS
+const ERC20_TOKEN_CONTRACT = '0xb0695a64E1ed17D9F392Fc53fAb22c122B742A68';
+const LENDING_VAULT_CONTRACT = '0x3b6708f2e32441DE7C1CDCeA68719DA3bEdcb9CD';
+const MOCK_ORACLE_CONTRACT = '0xd891ad4994f01e353b2D45A17868BBa1B5D2A003';
 
 // ABIs
 const ERC20_ABI = [
@@ -745,10 +745,9 @@ const BorrowContainer: React.FC<BorrowContainerProps> = ({
     throw new Error('Please use Talisman wallet for Ethereum transactions.');
   };
 
-// Enhanced address debugging - replace your getEthereumAddress function and fetchBorrowingStrength
 
-// 1. ENHANCED getEthereumAddress function with detailed logging
-const getEthereumAddress = (account: any): string => {
+const getEthereumAddress = (account: any): string => {// 1. ENHANCED getEthereumAddress function with detailed logging
+
   console.log('🔍 ADDRESS DEBUG: Full account object:', account);
   console.log('🔍 ADDRESS DEBUG: Account type:', typeof account);
   console.log('🔍 ADDRESS DEBUG: Account keys:', Object.keys(account || {}));
@@ -784,7 +783,6 @@ const getEthereumAddress = (account: any): string => {
   }
 };
 
-// 2. ENHANCED fetchBorrowingStrength with address verification
 
   // Fetch borrowing strength when component mounts or account changes
   React.useEffect(() => {
@@ -815,12 +813,7 @@ const getEthereumAddress = (account: any): string => {
     setError(null);
   };
 
-  // Handle borrow submission
-// Enhanced borrow function with detailed debugging
 
-// Add this error decoding function at the top of your BorrowContainer component (before handleBorrow)
-
-// Add this function to debug and verify your contract
 const verifyContractFunctions = async () => {
   try {
     const ethers = await import('ethers');
@@ -991,7 +984,6 @@ const fetchBorrowingStrength = async () => {
   }
 };
 
-// REPLACE your handleBorrow function with this enhanced debug version:
 const handleBorrow = async (e: React.FormEvent) => {
   e.preventDefault();
   
@@ -1071,9 +1063,6 @@ const handleBorrow = async (e: React.FormEvent) => {
       return;
     }
 
-
-
-    // Now test the actual requested amount
     const borrowAmountUSD = Math.floor(amount);
     
 

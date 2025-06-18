@@ -8,7 +8,6 @@ import { ExternalLink, Info, ArrowRight, RefreshCw, AlertCircle, TrendingDown, P
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAccountAddress } from '../types/lending';
 
-// TypeScript declarations for Talisman wallet
 declare global {
   interface Window {
     talismanEth?: any;
@@ -21,13 +20,13 @@ declare global {
 // Contract Configuration for Westend Asset Hub
 const CONTRACT_CONFIG = {
   RPC_URL: 'https://westend-asset-hub-eth-rpc.polkadot.io',
-  ORACLE_ADDRESS: '0x05deF0eDF0ED1773F724A9Fe121Af64267C69204',
-  LENDING_VAULT_ADDRESS: '0x61eB150FB07c6DD742893708e6B7D7a4161BcA0C',
+  ORACLE_ADDRESS: '0xd891ad4994f01e353b2D45A17868BBa1B5D2A003',
+  LENDING_VAULT_ADDRESS: '0x3b6708f2e32441DE7C1CDCeA68719DA3bEdcb9CD',
   LIQUIDATION_THRESHOLD: ethers.BigNumber.from('100000000000000000000'), // 100 * 10^18
   LIQUIDATION_DISCOUNT: 0.05, // 5% discount (pay 95%, get 100%)
 };
 
-// CORRECTED Oracle ABI
+// Oracle ABI
 const ORACLE_ABI = [
   {
     "inputs": [],
@@ -54,7 +53,7 @@ const ORACLE_ABI = [
   }
 ];
 
-// CORRECTED Lending Vault ABI (matches your actual contract)
+// Lending Vault ABI 
 const LENDING_VAULT_ABI = [
   {
     "inputs": [
@@ -771,7 +770,7 @@ const Liquidations: React.FC = () => {
               profit: profit,
               debtAsset: {
                 symbol: 'USD',
-                icon: '/assets/usd.png',
+                icon: '../../public/assets/MSC.svg',
                 price: 1
               },
               collateralAsset: {
@@ -859,109 +858,238 @@ const Liquidations: React.FC = () => {
     console.log('✅ Polling setup complete');
   };
 
-  // CORRECTED LIQUIDATION FUNCTION - Uses Talisman wallet
-  const handleLiquidate = async (opportunityId: string) => {
-    const opportunity = liquidationOpportunities.find((o: LiquidationOpportunity) => o.id === opportunityId);
-    if (!opportunity || !lendingVaultContract || !selectedAccount) return;
+  // CORRECTED LIQUIDATION FUNCTION - Remove the repayAmountUSD parameter
+// Enhanced liquidation function with comprehensive pre-checks
+const handleLiquidate = async (opportunityId: string) => {
+  const opportunity = liquidationOpportunities.find((o: LiquidationOpportunity) => o.id === opportunityId);
+  if (!opportunity || !lendingVaultContract || !selectedAccount) return;
+  
+  setIsLoading(true);
+  try {
+    console.log('🔄 Starting enhanced liquidation process...');
+    console.log('Opportunity:', opportunity);
     
-    setIsLoading(true);
-    try {
-      console.log('🔄 Starting liquidation process...');
-      console.log('Opportunity:', opportunity);
-      
-      // Get user's Ethereum address for the transaction
-      const userAddress = getEthereumAddress(selectedAccount);
-      console.log('User address for liquidation:', userAddress);
-      
-      // Use Talisman wallet provider instead of generic window.ethereum
-      let signer;
-      
-      // First try to get Talisman provider specifically
-      if (window.talismanEth) {
-        console.log('🦊 Using Talisman provider...');
-        const talismanProvider = new ethers.providers.Web3Provider(window.talismanEth);
-        signer = talismanProvider.getSigner(userAddress);
-      } else if (window.ethereum?.isTalisman) {
-        console.log('🦊 Using Talisman via window.ethereum...');
-        const talismanProvider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = talismanProvider.getSigner(userAddress);
-      } else if (window.ethereum) {
-        console.log('⚠️ Using generic ethereum provider...');
-        const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = web3Provider.getSigner(userAddress);
-      } else {
-        throw new Error('No wallet provider found. Please install Talisman wallet and make sure it is connected.');
-      }
-      
-      // Connect contract to signer for transactions
-      const contractWithSigner = lendingVaultContract.connect(signer);
-      
-      // CORRECTED: Use the amount the user needs to pay (95% of collateral value)
-      // The contract expects the repay amount in USD (as integer, no decimals)
-      const repayAmountUSD = Math.floor(opportunity.youPay);
-      
-      console.log(`💰 Liquidation Details:`);
-      console.log(`  Borrower: ${opportunity.borrower}`);
-      console.log(`  Collateral: ${opportunity.collateralAmount} DOT`);
-      console.log(`  Collateral Value: $${opportunity.collateralValueUSD}`);
-      console.log(`  You Pay: $${opportunity.youPay} (95%)`);
-      console.log(`  You Receive: $${opportunity.youReceive} (100%)`);
-      console.log(`  Profit: $${opportunity.profit} (5%)`);
-      console.log(`  Repay Amount (to contract): ${repayAmountUSD} USD`);
-      
-      // Execute liquidation
-      console.log(`🔄 Calling liquidate(${opportunity.borrower}, ${repayAmountUSD})...`);
-      const tx = await contractWithSigner.liquidate(
-        opportunity.borrower, 
-        repayAmountUSD
-      );
-      
-      console.log('📋 Liquidation transaction sent:', tx.hash);
-      console.log('⏳ Waiting for transaction confirmation...');
-      
-      const receipt = await tx.wait();
-      console.log('✅ Transaction confirmed in block:', receipt.blockNumber);
-      
-      // Remove the liquidated opportunity
-      setLiquidationOpportunities(prev => prev.filter(o => o.id !== opportunityId));
-      
-      // Update stats
-      setLiquidationCount(prev => prev + 1);
-      setTotalProfit(prev => prev + opportunity.profit);
-      
-      console.log(`✅ Liquidation successful! Hash: ${tx.hash}`);
-      console.log(`💰 Profit earned: $${opportunity.profit.toFixed(2)}`);
-      
-      // Refresh data to get updated state
-      setTimeout(() => {
-        refreshData();
-      }, 2000); // Wait 2 seconds for blockchain to update
-      
-    } catch (error: any) {
-      console.error('❌ Liquidation error:', error);
-      
-      let errorMessage = 'Liquidation failed: ';
-      if (error.message.includes('Vault is healthy')) {
-        errorMessage += 'Position is no longer liquidatable (health ratio improved)';
-      } else if (error.message.includes('Not enough collateral')) {
-        errorMessage += 'Insufficient collateral in the position';
-      } else if (error.message.includes('Transfer failed') || error.message.includes('ERC20')) {
-        errorMessage += 'Token transfer failed - check your USD token balance and approvals';
-      } else if (error.message.includes('No wallet provider')) {
-        errorMessage += 'Wallet provider not found - please install Talisman wallet';
-      } else if (error.message.includes('User rejected')) {
-        errorMessage += 'Transaction rejected by user in Talisman wallet';
-      } else if (error.message.includes('insufficient funds')) {
-        errorMessage += 'Insufficient funds for transaction';
-      } else {
-        errorMessage += error.message || 'Unknown error occurred';
-      }
-      
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
+    // Get user's Ethereum address for the transaction
+    const userAddress = getEthereumAddress(selectedAccount);
+    console.log('User address for liquidation:', userAddress);
+    
+    // Get wallet provider and signer
+    let signer;
+    if (window.talismanEth) {
+      console.log('🦊 Using Talisman provider...');
+      const talismanProvider = new ethers.providers.Web3Provider(window.talismanEth);
+      signer = talismanProvider.getSigner(userAddress);
+    } else if (window.ethereum?.isTalisman) {
+      console.log('🦊 Using Talisman via window.ethereum...');
+      const talismanProvider = new ethers.providers.Web3Provider(window.ethereum);
+      signer = talismanProvider.getSigner(userAddress);
+    } else if (window.ethereum) {
+      console.log('⚠️ Using generic ethereum provider...');
+      const web3Provider = new ethers.providers.Web3Provider(window.ethereum);
+      signer = web3Provider.getSigner(userAddress);
+    } else {
+      throw new Error('No wallet provider found. Please install Talisman wallet and make sure it is connected.');
     }
-  };
+    
+    // Connect contract to signer for transactions
+    const contractWithSigner = lendingVaultContract.connect(signer);
+    
+    console.log(`\n🔍 PRE-LIQUIDATION CHECKS:`);
+    
+    // 1. Re-check if position is still liquidatable
+    console.log('1️⃣ Checking if position is still liquidatable...');
+    try {
+      const [collateralAmount, debtAmount, healthRatio, collateralValueUSD] = 
+        await lendingVaultContract.getBorrowerDetails(opportunity.borrower);
+      
+      const isStillLiquidatable = healthRatio.lt(CONTRACT_CONFIG.LIQUIDATION_THRESHOLD);
+      console.log(`   Health Ratio: ${healthRatio.toString()}`);
+      console.log(`   Threshold: ${CONTRACT_CONFIG.LIQUIDATION_THRESHOLD.toString()}`);
+      console.log(`   Still Liquidatable: ${isStillLiquidatable}`);
+      
+      if (!isStillLiquidatable) {
+        throw new Error(`Position is no longer liquidatable. Health ratio improved to ${ethers.utils.formatUnits(healthRatio, 18)}`);
+      }
+      
+      console.log('   ✅ Position is still liquidatable');
+    } catch (err) {
+      console.error('   ❌ Position check failed:', err);
+      throw err;
+    }
+    
+    // 2. Get stablecoin contract address and create contract instance
+    console.log('2️⃣ Getting stablecoin contract details...');
+    let stablecoinContract;
+    try {
+      const stablecoinAddress = await lendingVaultContract.stablecoin();
+      console.log(`   Stablecoin contract: ${stablecoinAddress}`);
+      
+      // Basic ERC20 ABI for balance and approval checks
+      const ERC20_ABI = [
+        "function balanceOf(address owner) view returns (uint256)",
+        "function allowance(address owner, address spender) view returns (uint256)",
+        "function approve(address spender, uint256 amount) returns (bool)",
+        "function decimals() view returns (uint8)"
+      ];
+      
+      stablecoinContract = new ethers.Contract(stablecoinAddress, ERC20_ABI, signer);
+      console.log('   ✅ Stablecoin contract connected');
+    } catch (err) {
+      console.error('   ❌ Failed to get stablecoin contract:', err);
+      throw new Error('Failed to connect to stablecoin contract');
+    }
+    
+    // 3. Check user's stablecoin balance
+    console.log('3️⃣ Checking user stablecoin balance...');
+    try {
+      const userBalance = await stablecoinContract.balanceOf(userAddress);
+      const decimals = await stablecoinContract.decimals();
+      const balanceFormatted = parseFloat(ethers.utils.formatUnits(userBalance, decimals));
+      
+      console.log(`   User balance: ${balanceFormatted} USD tokens`);
+      console.log(`   Required: ${opportunity.youPay} USD`);
+      
+      if (balanceFormatted < opportunity.youPay) {
+        throw new Error(`Insufficient balance. You have ${balanceFormatted.toFixed(2)} USD tokens but need ${opportunity.youPay.toFixed(2)} USD tokens`);
+      }
+      
+      console.log('   ✅ Sufficient balance confirmed');
+    } catch (err) {
+      console.error('   ❌ Balance check failed:', err);
+      throw err;
+    }
+    
+    // 4. Check and set approval if needed
+    console.log('4️⃣ Checking token approval...');
+    try {
+      const currentAllowance = await stablecoinContract.allowance(userAddress, CONTRACT_CONFIG.LENDING_VAULT_ADDRESS);
+      const decimals = await stablecoinContract.decimals();
+      const allowanceFormatted = parseFloat(ethers.utils.formatUnits(currentAllowance, decimals));
+      
+      console.log(`   Current allowance: ${allowanceFormatted} USD tokens`);
+      console.log(`   Required: ${opportunity.youPay} USD`);
+      
+      if (allowanceFormatted < opportunity.youPay) {
+        console.log('   ⚠️ Insufficient allowance, requesting approval...');
+        
+        // Request approval for a large amount to avoid repeated approvals
+        const approvalAmount = ethers.utils.parseUnits((opportunity.youPay * 2).toString(), decimals);
+        console.log(`   Requesting approval for: ${ethers.utils.formatUnits(approvalAmount, decimals)} USD tokens`);
+        
+        const approveTx = await stablecoinContract.approve(CONTRACT_CONFIG.LENDING_VAULT_ADDRESS, approvalAmount);
+        console.log('   📋 Approval transaction sent:', approveTx.hash);
+        
+        const approveReceipt = await approveTx.wait();
+        console.log('   ✅ Approval confirmed in block:', approveReceipt.blockNumber);
+      } else {
+        console.log('   ✅ Sufficient allowance already set');
+      }
+    } catch (err) {
+      console.error('   ❌ Approval failed:', err);
+      throw new Error(`Token approval failed: ${(err as Error).message}`);
+    }
+    
+    // 5. Final validation before liquidation
+    console.log('5️⃣ Final validation...');
+    try {
+      // Check if borrower still exists and has debt
+      const borrowerExists = await lendingVaultContract.isBorrower(opportunity.borrower);
+      if (!borrowerExists) {
+        throw new Error('Borrower no longer exists in the system');
+      }
+      
+      const [, debtAmount] = await lendingVaultContract.vaults(opportunity.borrower);
+      if (debtAmount.eq(0)) {
+        throw new Error('Borrower no longer has any debt');
+      }
+      
+      console.log('   ✅ Final validation passed');
+    } catch (err) {
+      console.error('   ❌ Final validation failed:', err);
+      throw err;
+    }
+    
+    console.log(`\n💰 Executing Liquidation:`);
+    console.log(`  Borrower: ${opportunity.borrower}`);
+    console.log(`  Expected Profit: $${opportunity.profit.toFixed(2)}`);
+    
+    // Execute liquidation with manual gas limit if needed
+    console.log(`🔄 Calling liquidate(${opportunity.borrower})...`);
+    
+    let tx;
+    try {
+      // Try with automatic gas estimation first
+      tx = await contractWithSigner.liquidate(opportunity.borrower);
+    } catch (gasError) {
+      console.log('   ⚠️ Auto gas estimation failed, trying with manual gas limit...');
+      // Try with manual gas limit
+      tx = await contractWithSigner.liquidate(opportunity.borrower, {
+        gasLimit: 300000 // Manual gas limit
+      });
+    }
+    
+    console.log('📋 Liquidation transaction sent:', tx.hash);
+    console.log('⏳ Waiting for transaction confirmation...');
+    
+    const receipt = await tx.wait();
+    console.log('✅ Transaction confirmed in block:', receipt.blockNumber);
+    
+    // Parse the liquidation event to get actual amounts
+    if (receipt.logs && receipt.logs.length > 0) {
+      console.log('📊 Transaction logs:', receipt.logs.length);
+      // You can parse the Liquidated event here if needed
+    }
+    
+    // Remove the liquidated opportunity
+    setLiquidationOpportunities(prev => prev.filter(o => o.id !== opportunityId));
+    
+    // Update stats
+    setLiquidationCount(prev => prev + 1);
+    setTotalProfit(prev => prev + opportunity.profit);
+    
+    console.log(`\n🎉 LIQUIDATION SUCCESSFUL!`);
+    console.log(`💰 Transaction Hash: ${tx.hash}`);
+    console.log(`💰 Estimated Profit: $${opportunity.profit.toFixed(2)}`);
+    console.log(`🔗 View on Subscan: https://westend-asset-hub.subscan.io/extrinsic/${tx.hash}`);
+    
+    // Refresh data to get updated state
+    setTimeout(() => {
+      refreshData();
+    }, 3000);
+    
+  } catch (error: any) {
+    console.error('❌ Liquidation error:', error);
+    
+    let errorMessage = 'Liquidation failed: ';
+    
+    // Enhanced error messages
+    if (error.message.includes('Position is no longer liquidatable')) {
+      errorMessage += error.message;
+    } else if (error.message.includes('Insufficient balance')) {
+      errorMessage += error.message + '. Please get more USD tokens before attempting liquidation.';
+    } else if (error.message.includes('Token approval failed')) {
+      errorMessage += 'Failed to approve USD tokens. Please try again or approve manually in your wallet.';
+    } else if (error.message.includes('Borrower no longer exists')) {
+      errorMessage += 'This borrower position no longer exists. The position may have been liquidated by someone else.';
+    } else if (error.message.includes('Borrower no longer has any debt')) {
+      errorMessage += 'This borrower has repaid their debt. Position is no longer liquidatable.';
+    } else if (error.message.includes('execution reverted')) {
+      errorMessage += 'Smart contract rejected the transaction. The position may have changed or you may not meet the requirements.';
+    } else if (error.message.includes('User rejected')) {
+      errorMessage += 'Transaction was cancelled in your wallet.';
+    } else if (error.message.includes('insufficient funds')) {
+      errorMessage += 'Insufficient ETH for gas fees.';
+    } else if (error.message.includes('UNPREDICTABLE_GAS_LIMIT')) {
+      errorMessage += 'Gas estimation failed. The transaction would likely revert. Please check all requirements are met.';
+    } else {
+      errorMessage += error.message || 'Unknown error occurred';
+    }
+    
+    setError(errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleStopMonitoring = () => {
     if (!isMonitoring) return;

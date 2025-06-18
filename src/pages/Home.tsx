@@ -229,7 +229,7 @@ const Home: React.FC = () => {
 
             <motion.h1 
               className="text-4xl sm:text-5xl md:text-6xl font-heading font-bold mb-6 
-                         bg-clip-text text-transparent bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600"
+                         bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-300 to-purple-400"
               variants={itemVariants}
             >
               🚀 Decentralized Lending on Polkadot
@@ -426,9 +426,7 @@ const Home: React.FC = () => {
         </div>
       </section>
       
-      {/* Enhanced CTA Section */}
       <section className="py-20 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 relative overflow-hidden">
-        {/* Animated background elements */}
         <div className="absolute inset-0">
           <motion.div
             className="absolute w-96 h-96 rounded-full bg-white/10 -top-48 -right-48"

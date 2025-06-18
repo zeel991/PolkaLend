@@ -1,21 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../components/ui/Card';
 import HealthRatioGauge from '../components/ui/HealthRatioGauge';
-import AssetRow from '../components/ui/AssetRow';
-import { useLending } from '../contexts/LendingContext';
 import { useWallet } from '../contexts/WalletContext';
-import { formatCurrency, formatNumber } from '../utils/helpers';
-import { Wallet, PlusCircle, MinusCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { formatCurrency } from '../utils/helpers';
+import { Wallet, ArrowRight, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ethers } from 'ethers';
 import { getAccountAddress } from '../types/lending';
 
-// FIXED: Use the same contract addresses as BorrowContainer
 const WESTEND_RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
-const ERC20_TOKEN_CONTRACT = '0x1FDe1cAeCe0C9d102C5736d2AdE595Dc6cE45f1c';
-const LENDING_VAULT_CONTRACT = '0x61eB150FB07c6DD742893708e6B7D7a4161BcA0C';
-const MOCK_ORACLE_CONTRACT = '0x05deF0eDF0ED1773F724A9Fe121Af64267C69204';
+const ERC20_TOKEN_CONTRACT = '0xb0695a64E1ed17D9F392Fc53fAb22c122B742A68';
+const LENDING_VAULT_CONTRACT = '0x3b6708f2e32441DE7C1CDCeA68719DA3bEdcb9CD';
+const MOCK_ORACLE_CONTRACT = '0xd891ad4994f01e353b2D45A17868BBa1B5D2A003';
 
 // ABIs
 const ERC20_ABI = [
@@ -95,7 +92,6 @@ interface RealContractData {
   error: string | null;
 }
 
-// Enhanced Card Animation Component
 const AnimatedCard: React.FC<{ children: React.ReactNode; className?: string; delay?: number }> = ({ 
   children, 
   className = "", 
@@ -126,11 +122,9 @@ const AnimatedCard: React.FC<{ children: React.ReactNode; className?: string; de
       dark:hover:from-purple-800/60 dark:hover:to-pink-800/40
       ${className}
     `}>
-      {/* Animated background effect */}
       <div className="absolute inset-0 bg-gradient-to-r from-purple-400/0 via-purple-400/5 to-pink-400/0 
                       opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       
-      {/* Shimmer effect */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity duration-700">
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent 
                         -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out" />

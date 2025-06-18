@@ -8,8 +8,8 @@ import { ContainerProps, AssetWithBalance, getAccountAddress } from '../types/le
 
 // Contract addresses (same as ApproveContainer)
 const WESTEND_RPC_URL = 'https://westend-asset-hub-eth-rpc.polkadot.io';
-const ERC20_TOKEN_CONTRACT = '0x1FDe1cAeCe0C9d102C5736d2AdE595Dc6cE45f1c';
-const LENDING_VAULT_CONTRACT = '0x61eB150FB07c6DD742893708e6B7D7a4161BcA0C';
+const ERC20_TOKEN_CONTRACT = '0xb0695a64E1ed17D9F392Fc53fAb22c122B742A68';
+const LENDING_VAULT_CONTRACT = '0x3b6708f2e32441DE7C1CDCeA68719DA3bEdcb9CD';
 
 // ERC20 ABI
 const ERC20_ABI = [
@@ -564,7 +564,7 @@ const SupplyContainer: React.FC<SupplyContainerProps> = ({
           {/* Value in USD */}
           {selectedAsset && borrowAmount && !isNaN(parseFloat(borrowAmount)) && (
             <div className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              ≈ {formatCurrency(parseFloat(borrowAmount) * selectedAsset.price)}
+              ≈ {formatCurrency(parseFloat(borrowAmount) *10)}
             </div>
           )}
         </div>
